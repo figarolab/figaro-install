@@ -39,8 +39,31 @@ ok()   { echo -e "  ${GREEN}✓${RESET} $*"; }
 info() { echo -e "  ${YELLOW}→${RESET} $*"; }
 fail() { echo -e "  ${RED}✗${RESET} $*"; exit 1; }
 
-command -v git  >/dev/null 2>&1 || fail "git non trovato — installalo prima di continuare (es. sudo apt-get install -y git)."
-command -v curl >/dev/null 2>&1 || fail "curl non trovato — installalo prima di continuare (es. sudo apt-get install -y curl)."
+# Tutti i prerequisiti si verificano QUI, prima di chiedere il PAT e prima di
+# scrivere qualsiasi cosa su disco. Prima il controllo di Docker stava solo in
+# install.sh: su una macchina appena creata il bootstrap clonava il manifest,
+# scriveva config/registry.env e moriva tre passi dopo con "Missing required
+# command: docker", lasciando una destinazione mezza provvista.
+need() { command -v "$1" >/dev/null 2>&1 || fail "$2"; }
+
+need git     "git non trovato — installalo prima di continuare:  sudo apt-get install -y git"
+need curl    "curl non trovato — installalo prima di continuare:  sudo apt-get install -y curl"
+need openssl "openssl non trovato — installalo prima di continuare:  sudo apt-get install -y openssl"
+need docker  "Docker non trovato. Su Ubuntu/Debian:
+       sudo apt-get install -y docker.io docker-compose-v2
+       sudo usermod -aG docker \$USER      # poi riapri la sessione SSH
+     Altre distribuzioni: https://docs.docker.com/engine/install/"
+
+docker compose version >/dev/null 2>&1 || fail "Plugin Docker Compose v2 assente.
+       sudo apt-get install -y docker-compose-v2
+     Altre distribuzioni: https://docs.docker.com/compose/install/"
+
+# Docker installato ma inservibile fallisce comunque piu' avanti: meglio adesso, e
+# col messaggio giusto — su una macchina nuova nove volte su dieci non e' il demone
+# spento, e' l'utente che non e' ancora nel gruppo docker.
+docker info >/dev/null 2>&1 || fail "Il demone Docker non risponde.
+     • se e' spento:               sudo systemctl start docker
+     • se dice permission denied:  sudo usermod -aG docker \$USER, poi riapri la sessione SSH"
 
 # ── Intro ─────────────────────────────────────────────────────────────────────
 echo -e "\n${BOLD}Figaro Secure Gateway — bootstrap${RESET}"
@@ -72,10 +95,15 @@ export FIGARO_REGISTRY_PAT
 git_auth() {
   local basic
   basic="$(printf '%s' "x-access-token:${FIGARO_REGISTRY_PAT}" | base64 | tr -d '\n')"
+  # advice.detachedHead=false: il clone al tag e' detached per costruzione, e il
+  # pistolotto di git su "You are in 'detached HEAD' state..." su un installer
+  # cliente sembra un errore. Non cambia comportamento, solo output.
   GIT_TERMINAL_PROMPT=0 \
-  GIT_CONFIG_COUNT=1 \
+  GIT_CONFIG_COUNT=2 \
   GIT_CONFIG_KEY_0=http.extraHeader \
   GIT_CONFIG_VALUE_0="Authorization: Basic ${basic}" \
+  GIT_CONFIG_KEY_1=advice.detachedHead \
+  GIT_CONFIG_VALUE_1=false \
     git "$@"
 }
 
@@ -119,7 +147,7 @@ if [[ -d "$DEST/.git" ]]; then
   # --detach + refs/tags/: nessuna ambiguità con un branch omonimo, stato = esattamente il tag.
   if ! ( cd "$DEST" \
          && git_auth fetch --force --depth 1 origin "refs/tags/${TAG}:refs/tags/${TAG}" \
-         && git checkout --detach "refs/tags/${TAG}" ); then
+         && git -c advice.detachedHead=false checkout --detach "refs/tags/${TAG}" ); then
     fail "Impossibile allineare il clone esistente al tag '${TAG}'.
      Verifica il PAT e la connettività, oppure passa un'altra <dest-dir>."
   fi
