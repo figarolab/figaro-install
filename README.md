@@ -26,9 +26,33 @@ Non usare `curl … | bash`: scarica, verifica, esegui.
 
 ## Prerequisiti sulla macchina
 
-- Docker con il plugin Compose v2 (`docker compose version`)
-- `git`, `curl`, `openssl`
-- porte 80 e 443 libere (o indica porte diverse quando l'installer le chiede)
+Una macchina Linux **x86_64** (Ubuntu 22.04+ o Debian). Non funziona su ARM.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y docker.io docker-compose-v2 git curl openssl
+sudo usermod -aG docker $USER      # poi ESCI e riapri la sessione SSH
+```
+
+L'ultimo comando è quello che si dimentica più spesso: senza il gruppo `docker` l'installer
+si ferma dicendo che il demone non risponde, e la modifica ha effetto solo alla sessione
+successiva.
+
+Verifica veloce, prima di iniziare:
+
+```bash
+docker compose version && docker info >/dev/null && echo "pronto"
+```
+
+Serve inoltre:
+
+| | |
+|---|---|
+| **RAM** | almeno 16 GB per il gateway. Se fai girare anche il modello in locale, si somma la memoria del modello |
+| **Disco** | almeno 50 GB liberi (~22 GB di immagini; il resto serve agli aggiornamenti, che scaricano la versione nuova prima di rimuovere la vecchia) |
+| **Porte** | 80 e 443 libere, oppure altre a scelta durante l'installazione. La 80 deve essere raggiungibile da internet solo se scegli il certificato Let's Encrypt |
+| **Rete** | accesso in uscita a `ghcr.io`, `github.com`, `docker.io`, `quay.io` |
+| **GPU** | se installi con inferenza locale su GPU, i modelli vanno messi in `/opt/models` **prima** di lanciare l'installer: chiedili al fornitore |
 
 ## Cosa succede quando lo esegui
 
