@@ -39,6 +39,13 @@ ok()   { echo -e "  ${GREEN}✓${RESET} $*"; }
 info() { echo -e "  ${YELLOW}→${RESET} $*"; }
 fail() { echo -e "  ${RED}✗${RESET} $*"; exit 1; }
 
+# #199: le immagini GHCR sono solo amd64 (guide/REGISTRY.md). Su ARM il pull fallisce con
+# «no matching manifest» e verrebbe letto come errore di autenticazione: fermarsi prima.
+case "$(uname -m)" in
+  x86_64|amd64) ;;
+  *) fail "Architettura non supportata: $(uname -m). Figaro richiede un host amd64 (x86_64): le immagini nel registry sono pubblicate solo per linux/amd64." ;;
+esac
+
 # Tutti i prerequisiti si verificano QUI, prima di chiedere il PAT e prima di
 # scrivere qualsiasi cosa su disco. Prima il controllo di Docker stava solo in
 # install.sh: su una macchina appena creata il bootstrap clonava il manifest,
